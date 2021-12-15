@@ -397,17 +397,6 @@ class VwWeConnect {
                     this.log.error("get id status Failed");
                   });
                 });
-
-                this.updateInterval = setInterval(() => {
-                  this.vinArray.forEach((vin) => {
-                    this.getIdStatus(vin).catch(() => {
-                      this.log.error("get id status Failed");
-                      this.refreshIDToken().catch(() => {});
-                    });
-                    this.getWcData();
-                  });
-                  return;
-                }, this.config.interval * 60 * 1000);
               })
               .catch(() => {
                 this.log.error("Get Vehicles Failed");
@@ -423,6 +412,7 @@ class VwWeConnect {
 
     let result = await promise; // wait for the promise from the start to resolve
     this.log.debug("getData END");
+    return this.idData;
   }
 
   login() {

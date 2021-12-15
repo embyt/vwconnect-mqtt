@@ -8,6 +8,7 @@
   },
   "author": "Roman Morawek",
   "license": "unlicensed",
+  "type": "module",
   "dependencies": {
     "@peculiar/webcrypto": "^1.0.22",
     "nconf": "^0.11.3",
