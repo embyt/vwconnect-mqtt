@@ -1,5 +1,17 @@
 export interface IIdData {
-  data: any;
+  data: {
+    batteryStatus: any;
+    chargingStatus: any;
+    chargeMode: any;
+    plugStatus: any;
+    climatisationStatus: any;
+    climatisationSettings: any;
+    climatisationTimer: any;
+    windowHeatingStatus: any;
+    rangeStatus: any;
+    capabilityStatus: any;
+    readinessStatus: any;
+  };
 }
 
 export class VwWeConnect {
