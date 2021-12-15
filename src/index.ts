@@ -1,7 +1,7 @@
 import nconf from "nconf";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
-import mqtt from "mqtt";
+import mqtt, { MqttClient } from "mqtt";
 import * as api from "./vwconnectapi.cjs";
 
 function setupConfig() {
@@ -91,14 +91,14 @@ while (true) {
   // publish data to mqtt
   extractData(vwConn.idData);
 
+  // pause
+  await new Promise((resolve) => setTimeout(resolve, nconf.get("vwc_pollInterval") * 1000));
+
   // renew communication tokens
   console.log("refresh token");
   await vwConn.refreshIDToken().catch(() => {
     console.error("error refreshing id token");
   });
-
-  // pause
-  await new Promise((resolve) => setTimeout(resolve, nconf.get("vwc_pollInterval") * 1000));
 
   // get data
   console.log("get status");
@@ -111,4 +111,4 @@ while (true) {
   );
 }
 
-mqttclient.end();
+// mqttclient.end();

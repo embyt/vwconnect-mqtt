@@ -141,16 +141,16 @@ class VwWeConnect {
   finishedReading() {
     this.log.debug(
       " Id: " +
-        this.boolFinishIdData +
-        " HomeCharge: " +
-        this.boolFinishHomecharging +
-        " ChargePay: " +
-        this.boolFinishChargeAndPay +
-        " Stat: " +
-        this.boolFinishStations +
-        /*" Car: " + this.boolFinishCarData*/
-        " Vehic: " +
-        this.boolFinishVehicles,
+      this.boolFinishIdData +
+      " HomeCharge: " +
+      this.boolFinishHomecharging +
+      " ChargePay: " +
+      this.boolFinishChargeAndPay +
+      " Stat: " +
+      this.boolFinishStations +
+      /*" Car: " + this.boolFinishCarData*/
+      " Vehic: " +
+      this.boolFinishVehicles,
     );
     return (
       (this.boolFinishIdData || this.config.chargerOnly) &&
@@ -675,7 +675,7 @@ class VwWeConnect {
                             const location = resp.headers.location;
                             this.log.error(
                               "Error: " +
-                                location.substring(location.indexOf("error="), location.length - 1),
+                              location.substring(location.indexOf("error="), location.length - 1),
                             );
                           } else {
                             this.log.error(
@@ -950,7 +950,7 @@ class VwWeConnect {
         if (this.type === "Wc") {
           this.config.wc_access_token = tokens.wc_access_token;
           this.config.wc_refresh_token = tokens.refresh_token;
-          this.log.debug("Wallcharging login successfull");
+          this.log.debug("Wallcharging login successful");
           this.getWcData(100);
           resolve();
           return;
@@ -961,7 +961,7 @@ class VwWeConnect {
         //configure for wallcharging login
 
         this.refreshTokenInterval = setInterval(() => {
-          this.refreshIDToken().catch(() => {});
+          this.refreshIDToken().catch(() => { });
         }, 0.9 * 60 * 60 * 1000); // 0.9hours
 
         //this.config.type === "wc"
@@ -976,7 +976,7 @@ class VwWeConnect {
         this.xappversion = "";
         this.xappname = "";
         this.login().catch(() => {
-          this.log.warn("Failled wall charger login");
+          this.log.warn("Failed wall charger login");
         });
         resolve();
         return;
@@ -1380,8 +1380,8 @@ class VwWeConnect {
       });
     this.genericRequest(
       "https://wecharge.apps.emea.vwapps.io/charge-and-pay/v1/charging/records?limit=" +
-        limit +
-        "&offset=0",
+      limit +
+      "&offset=0",
       header,
       "wecharge.chargeandpay.records",
       [404],
@@ -1415,9 +1415,9 @@ class VwWeConnect {
           this.log.debug("Station: " + station.name + "/" + station.id);
           this.genericRequest(
             "https://wecharge.apps.emea.vwapps.io/home-charging/v1/charging/sessions?station_id=" +
-              station.id +
-              "&limit=" +
-              limit,
+            station.id +
+            "&limit=" +
+            limit,
             header,
             "wecharge.homecharging.stations." + station.name + ".sessions",
             [404],
@@ -1426,9 +1426,9 @@ class VwWeConnect {
             .then((body) => {
               this.log.debug(
                 "wecharge.homecharging.stations." +
-                  station.name +
-                  ".sessions.newesItem: " +
-                  JSON.stringify(body[0]),
+                station.name +
+                ".sessions.newesItem: " +
+                JSON.stringify(body[0]),
               );
             })
             .catch((hideError) => {
@@ -1451,9 +1451,9 @@ class VwWeConnect {
     const dt = new Date();
     this.genericRequest(
       "https://wecharge.apps.emea.vwapps.io/home-charging/v1/charging/records?start_date_time_after=2020-05-01T00:00:00.000Z&start_date_time_before=" +
-        dt.toISOString() +
-        "&limit=" +
-        limit,
+      dt.toISOString() +
+      "&limit=" +
+      limit,
       header,
       "wecharge.homecharging.records",
       [404],
@@ -1669,7 +1669,7 @@ class VwWeConnect {
               err && this.log.error(err);
               resp && this.log.error(resp.statusCode.toString());
               body && this.log.error(JSON.stringify(body));
-              this.refreshIDToken().catch(() => {});
+              this.refreshIDToken().catch(() => { });
               this.log.error("Refresh Token");
               reject();
               return;
