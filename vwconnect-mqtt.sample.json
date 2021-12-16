@@ -1,0 +1,12 @@
+{
+    "vwc": {
+      "username": "<your vw connect email address>",
+      "password": "<your vw connect password>"
+    },
+    "mqtt": {
+      "host": "mqtt://test.mosquitto.org",
+      "username": "<mqtt username>",
+      "password": "<mqtt password>"
+    }
+  }
+  

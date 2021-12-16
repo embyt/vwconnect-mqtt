@@ -1,7 +1,24 @@
 export interface IIdData {
   data: {
-    batteryStatus: any;
-    chargingStatus: any;
+    batteryStatus: {
+      carCapturedTimestamp: string;
+      currentSOC_pct: number;
+      cruisingRangeElectric_km: number;
+    };
+    chargingStatus: {
+      carCapturedTimestamp: string;
+      remainingChargingTimeToComplete_min: number;
+      chargingState: 'readyForCharging';
+      chargeMode: 'manual';
+      chargePower_kW: number;
+      chargeRate_kmph: number;
+    }
+    chargingSettings: {
+      carCapturedTimestamp: string;
+      maxChargeCurrentAC: 'maximum';
+      autoUnlockPlugWhenCharged: 'permanent';
+      targetSOC_pct: number;
+    },
     chargeMode: any;
     plugStatus: any;
     climatisationStatus: any;

@@ -43,7 +43,7 @@ function setupMqtt() {
   // setup mqtt interface
   const mqttclient = mqtt.connect(nconf.get("mqtt:host"), {
     clientId: "vwconnect",
-    username: nconf.get("mqtt:user"),
+    username: nconf.get("mqtt:username"),
     password: nconf.get("mqtt:password"),
   });
   mqttclient.on("connect", () => {
@@ -57,11 +57,13 @@ function setupMqtt() {
 
 function extractData(data: api.IIdData) {
   // loop through all subscribed data topics
-  const topics = Object.keys(nconf.get("data"));
+  const subscriptions = nconf.get("data");
+  const topics = Object.keys(subscriptions);
   const values = topics.map((curTopic) => {
-    let curObj: any = data;
-    const topicParts = curTopic.split(".");
+    let curObj: any = data.data;
+    const topicParts = subscriptions[curTopic].split(".") as string[];
     topicParts.forEach((curSect) => {
+      //console.log("it", curObj, curSect, curObj?.[curSect]);
       curObj = curObj?.[curSect];
     });
     return curObj;
@@ -92,7 +94,7 @@ while (true) {
   extractData(vwConn.idData);
 
   // pause
-  await new Promise((resolve) => setTimeout(resolve, nconf.get("vwc_pollInterval") * 1000));
+  await new Promise((resolve) => setTimeout(resolve, nconf.get("vwc:pollInterval") * 1000));
 
   // renew communication tokens
   console.log("refresh token");
