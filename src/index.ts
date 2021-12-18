@@ -15,6 +15,7 @@ function setupConfig() {
       vwc: {
         type: "id",
         pollInterval: 10 * 60, // s
+        fastPollInterval: 5 * 60, // s
       },
       mqtt: {
         prefix: "vwconnect",
@@ -78,6 +79,9 @@ function extractData(data: api.IIdData) {
       console.warn("topic not found:", topics[i]);
     }
   }
+
+  // check if charging
+  return data.data?.chargingStatus?.chargePower_kW ? true : false;
 }
 
 setupConfig();
@@ -89,12 +93,14 @@ console.log("login and get initial status");
 await vwConn.getData();
 
 // start endless loop
+let doFastPoll = false;
 while (true) {
   // publish data to mqtt
-  extractData(vwConn.idData);
+  doFastPoll = extractData(vwConn.idData);
 
   // pause
-  await new Promise((resolve) => setTimeout(resolve, nconf.get("vwc:pollInterval") * 1000));
+  const timeout = nconf.get(doFastPoll ? "vwc:fastPollInterval" : "vwc:pollInterval") * 1000;
+  await new Promise((resolve) => setTimeout(resolve, timeout));
 
   // renew communication tokens
   console.log("refresh token");
