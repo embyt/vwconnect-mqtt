@@ -141,19 +141,8 @@ class VwWeConnect {
   }
 
   finishedReading() {
-    this.log.debug(
-      " Id: " +
-      this.boolFinishIdData +
-      " HomeCharge: " +
-      this.boolFinishHomecharging +
-      " ChargePay: " +
-      this.boolFinishChargeAndPay +
-      " Stat: " +
-      this.boolFinishStations +
-      /*" Car: " + this.boolFinishCarData*/
-      " Vehic: " +
-      this.boolFinishVehicles,
-    );
+    this.log.debug(`Id: ${this.boolFinishIdData} HomeCharge: ${this.boolFinishHomecharging}` +
+      ` ChargePay: ${this.boolFinishChargeAndPay} Stat: ${this.boolFinishStations} Vehic: ${this.boolFinishVehicles}`);
     return (
       (this.boolFinishIdData || this.config.chargerOnly) &&
       this.boolFinishHomecharging &&
@@ -602,7 +591,7 @@ class VwWeConnect {
                       }
 
                       try {
-                        this.log.debug("authenticate result", JSON.stringify(body));
+                        this.log.debug("authenticate result: " + JSON.stringify(body));
                         this.log.debug(JSON.stringify(resp.headers));
 
                         if (
@@ -715,7 +704,7 @@ class VwWeConnect {
                           },
                           (err, resp, body) => {
                             if (err) {
-                              this.log.debug("get tokens err:", err);
+                              this.log.debug("get tokens err: " + err);
                               this.getTokens(getRequest, code_verifier, reject, resolve);
                             } else {
                               this.log.debug(
