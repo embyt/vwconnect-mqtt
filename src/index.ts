@@ -34,7 +34,7 @@ function setupConfig() {
 function setupVwConnectApi() {
   // setup vw connect interface
   const vwConn = new api.VwWeConnect();
-  vwConn.setLogLevel("INFO"); // optional, ERROR (default), INFO, WARN or DEBUG
+  vwConn.setLogLevel("DEBUG"); // optional, ERROR (default), INFO, WARN or DEBUG
   vwConn.setCredentials(nconf.get("vwc:username"), nconf.get("vwc:password"), undefined);
   vwConn.setConfig(nconf.get("vwc:type")); // type
   return vwConn;

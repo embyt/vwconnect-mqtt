@@ -4,7 +4,8 @@
   "description": "Reads VW connect data and publishes them to mqtt",
   "main": "index.js",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "start": "node dist/index.js"
   },
   "author": "Roman Morawek",
   "license": "unlicensed",

@@ -56,6 +56,7 @@ class VwWeConnect {
     logLevel: "ERROR",
     targetTempC: -1,
     targetSOC: -1,
+    historyLimit: 100,
     chargerOnly: false,
   };
 
@@ -73,6 +74,7 @@ class VwWeConnect {
 
     this.log = new Log(this.config.logLevel);
     this.jar = request.jar();
+    this.userAgent = "ioBroker v47";
 
     this.refreshTokenInterval = null;
     this.vwrefreshTokenInterval = null;
@@ -440,9 +442,6 @@ class VwWeConnect {
       if (this.config.type === "vw" || this.config.type === "vwv2" || this.config.type === "go") {
         url += "&code_challenge=" + codeChallenge + "&code_challenge_method=S256";
       }
-      if (this.config.type === "audi") {
-        url += "&ui_locales=de-DE%20de&prompt=login";
-      }
       if (this.config.type === "id" && this.type !== "Wc") {
         url = await this.receiveLoginUrl().catch(() => {
           this.log.warn("Failed to get login url");
@@ -459,8 +458,7 @@ class VwWeConnect {
           method: method,
           url: url,
           headers: {
-            "User-Agent":
-              "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/74.0.3729.185 Mobile Safari/537.36",
+            "User-Agent": this.userAgent,
             Accept:
               "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3",
             "Accept-Language": "en-US,en;q=0.9",
@@ -524,8 +522,7 @@ class VwWeConnect {
                   "/login/identifier",
                 headers: {
                   "Content-Type": "application/x-www-form-urlencoded",
-                  "User-Agent":
-                    "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/74.0.3729.185 Mobile Safari/537.36",
+                  "User-Agent":this.userAgent,
                   Accept:
                     "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3",
                   "Accept-Language": "en-US,en;q=0.9",
@@ -547,10 +544,27 @@ class VwWeConnect {
                   return;
                 }
                 try {
+                  /* old credentialsForm, not used anymore
                   if (body.indexOf("credentialsForm") !== -1) {
                     this.log.debug("credentialsForm");
                     form = this.extractHidden(body);
                     form["password"] = this.config.password;
+                  }
+                  */
+                  if (body.indexOf("emailPasswordForm") !== -1) {
+                    this.log.debug("emailPasswordForm2");
+                    /*
+                    const stringJson =body.split("window._IDK = ")[1].split(";")[0].replace(/\n/g, "")
+                    const json =stringJson.replace(/(['"])?([a-z0-9A-Z_]+)(['"])?:/g, '"$2": ').replace(/'/g, '"')
+                    const jsonObj = JSON.parse(json);
+                    */
+                    form = {
+                      _csrf: body.split("csrf_token: '")[1].split("'")[0],
+                      email: this.config.user,
+                      password: this.config.password,
+                      hmac: body.split('"hmac":"')[1].split('"')[0],
+                      relayState: body.split('"relayState":"')[1].split('"')[0],
+                    };
                   } else {
                     this.log.error("No Login Form found. Please check your E-Mail in the app.");
                     this.log.debug(JSON.stringify(body));
@@ -565,8 +579,7 @@ class VwWeConnect {
                         "/login/authenticate",
                       headers: {
                         "Content-Type": "application/x-www-form-urlencoded",
-                        "User-Agent":
-                          "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/74.0.3729.185 Mobile Safari/537.36",
+                        "User-Agent":this.userAgent,
                         Accept:
                           "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3",
                         "Accept-Language": "en-US,en;q=0.9",
@@ -589,7 +602,7 @@ class VwWeConnect {
                       }
 
                       try {
-                        this.log.debug(JSON.stringify(body));
+                        this.log.debug("authenticate result", JSON.stringify(body));
                         this.log.debug(JSON.stringify(resp.headers));
 
                         if (
@@ -608,8 +621,7 @@ class VwWeConnect {
                               url: "https://" + resp.request.host + resp.headers.location,
                               jar: this.jar,
                               headers: {
-                                "User-Agent":
-                                  "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/74.0.3729.185 Mobile Safari/537.36",
+                                "User-Agent":this.userAgent,
                                 Accept:
                                   "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3",
                                 "Accept-Language": "en-US,en;q=0.9",
@@ -633,8 +645,7 @@ class VwWeConnect {
                                   jar: this.jar,
                                   headers: {
                                     "Content-Type": "application/x-www-form-urlencoded",
-                                    "User-Agent":
-                                      "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/74.0.3729.185 Mobile Safari/537.36",
+                                    "User-Agent":this.userAgent,
                                     Accept:
                                       "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3",
                                     "Accept-Language": "en-US,en;q=0.9",
@@ -674,7 +685,7 @@ class VwWeConnect {
                           if (resp.headers.location.indexOf("&error=") !== -1) {
                             const location = resp.headers.location;
                             this.log.error(
-                              "Error: " +
+                              "login Error: " +
                               location.substring(location.indexOf("error="), location.length - 1),
                             );
                           } else {
@@ -691,8 +702,7 @@ class VwWeConnect {
                           {
                             url: resp.headers.location || "",
                             headers: {
-                              "User-Agent":
-                                "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/74.0.3729.185 Mobile Safari/537.36",
+                              "User-Agent":this.userAgent,
                               Accept:
                                 "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3",
                               "Accept-Language": "en-US,en;q=0.9",
@@ -705,7 +715,7 @@ class VwWeConnect {
                           },
                           (err, resp, body) => {
                             if (err) {
-                              this.log.debug(err);
+                              this.log.debug("get tokens err:", err);
                               this.getTokens(getRequest, code_verifier, reject, resolve);
                             } else {
                               this.log.debug(
@@ -717,8 +727,7 @@ class VwWeConnect {
                                   url: getRequest.uri.href,
                                   headers: {
                                     "Content-Type": "application/x-www-form-urlencoded",
-                                    "User-Agent":
-                                      "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/74.0.3729.185 Mobile Safari/537.36",
+                                    "User-Agent":this.userAgent,
                                     Accept:
                                       "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3",
                                     "Accept-Language": "en-US,en;q=0.9",
@@ -735,7 +744,7 @@ class VwWeConnect {
                                   if (err) {
                                     this.getTokens(getRequest, code_verifier, reject, resolve);
                                   } else {
-                                    this.log.error("No Token received.");
+                                    this.log.error("No Token received. Please try to logout and login in the VW app or select type VWv2 in the settings");
                                     try {
                                       this.log.debug(JSON.stringify(body));
                                     } catch (err) {
@@ -785,8 +794,7 @@ class VwWeConnect {
             "&redirect_uri=weconnect://authenticated",
           headers: {
             Host: "login.apps.emea.vwapps.io",
-            "user-agent":
-              "Mozilla/5.0 (iPhone; CPU iPhone OS 14_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0.1 Mobile/15E148 Safari/604.1",
+            "user-agent":this.userAgent,
             accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "accept-language": "de-de",
           },
@@ -859,7 +867,7 @@ class VwWeConnect {
     let body = "auth_code=" + jwtauth_code + "&id_token=" + jwtid_token;
     let url = "https://tokenrefreshservice.apps.emea.vwapps.io/exchangeAuthCode";
     let headers = {
-      // "user-agent": "okhttp/3.7.0",
+      // "user-agent": this.userAgent,
       "X-App-version": this.xappversion,
       "content-type": "application/x-www-form-urlencoded",
       "x-app-name": this.xappname,
@@ -869,16 +877,6 @@ class VwWeConnect {
       body += "&code_verifier=" + code_verifier;
     } else {
       body += "&brand=" + this.config.type;
-    }
-    if (this.config.type === "go") {
-      url = "https://dmp.apps.emea.vwapps.io/mobility-platform/token";
-      body =
-        "code=" +
-        jwtauth_code +
-        "&client_id=" +
-        this.clientId +
-        "&redirect_uri=vwconnect://de.volkswagen.vwconnect/oauth2redirect/identitykit&grant_type=authorization_code&code_verifier=" +
-        code_verifier;
     }
     if (this.config.type === "id") {
       url = "https://login.apps.emea.vwapps.io/login/v1";
@@ -897,7 +895,7 @@ class VwWeConnect {
         accept: "*/*",
         "content-type": "application/json",
         "x-newrelic-id": "VgAEWV9QDRAEXFlRAAYPUA==",
-        "user-agent": "WeConnect/5 CFNetwork/1206 Darwin/20.1.0",
+        "user-agent": this.userAgent,
         "accept-language": "de-de",
       };
       if (this.type === "Wc") {
@@ -908,10 +906,6 @@ class VwWeConnect {
         redirerctUri = "wecharge://authenticated";
         headers["x-api-key"] = "yabajourasW9N8sm+9F/oP==";
       }
-    }
-    if (this.config.type === "audi") {
-      this.getVWToken({}, jwtid_token, reject, resolve);
-      return;
     }
     request(
       {
@@ -951,7 +945,7 @@ class VwWeConnect {
           this.config.wc_access_token = tokens.wc_access_token;
           this.config.wc_refresh_token = tokens.refresh_token;
           this.log.debug("Wallcharging login successful");
-          this.getWcData(100);
+          this.getWcData(this.config.historyLimit);
           resolve();
           return;
         }
@@ -998,7 +992,7 @@ class VwWeConnect {
       {
         url: "https://mbboauth-1d.prd.ece.vwg-connect.com/mbbcoauth/mobile/oauth2/v1/token",
         headers: {
-          "User-Agent": "okhttp/3.7.0",
+          "User-Agent": this.userAgent,
           "X-App-Version": this.xappversion,
           "X-App-Name": this.xappname,
           "X-Client-Id": this.xclientId,
@@ -1026,6 +1020,9 @@ class VwWeConnect {
           const tokens = JSON.parse(body);
           this.config.vwatoken = tokens.access_token;
           this.config.vwrtoken = tokens.refresh_token;
+          if (this.vwrefreshTokenInterval) {
+            clearInterval(this.vwrefreshTokenInterval);
+          }
           this.vwrefreshTokenInterval = setInterval(() => {
             this.refreshToken(true).catch(() => {
               this.log.error("Refresh Token was not successful");
@@ -1069,7 +1066,7 @@ class VwWeConnect {
         {
           url: url,
           headers: {
-            "user-agent": "okhttp/3.7.0",
+            "user-agent": this.userAgent,
             "content-type": "application/x-www-form-urlencoded",
             "X-App-version": this.xappversion,
             "X-App-name": this.xappname,
@@ -1103,7 +1100,9 @@ class VwWeConnect {
             const tokens = JSON.parse(body);
             if (tokens.error) {
               this.log.error(JSON.stringify(body));
+              clearTimeout(this.refreshTokenTimeout());
               this.refreshTokenTimeout = setTimeout(() => {
+                this.refreshTokenTimeout = null;
                 this.refreshToken(isVw).catch(() => {
                   this.log.error("refresh token failed");
                 });
@@ -1157,7 +1156,7 @@ class VwWeConnect {
             this.config.userid +
             "/personalData",
           headers: {
-            "user-agent": "okhttp/3.7.0",
+            "user-agent": this.userAgent,
             "X-App-version": this.xappversion,
             "X-App-name": this.xappname,
             authorization: "Bearer " + this.config.atoken,
@@ -1199,23 +1198,12 @@ class VwWeConnect {
         "https://msg.volkswagen.de/fs-car/usermanagement/users/v1/$type/$country/vehicles",
       );
       let headers = {
-        "User-Agent": "okhttp/3.7.0",
+        "User-Agent": this.userAgent,
         "X-App-Version": this.xappversion,
         "X-App-Name": this.xappname,
         Authorization: "Bearer " + this.config.vwatoken,
         Accept: "application/json",
       };
-      if (this.config.type === "go") {
-        url = "https://dmp.apps.emea.vwapps.io/mobility-platform/vehicles";
-        headers = {
-          "user-agent": "okhttp/3.9.1",
-          authorization: "Bearer " + this.config.atoken,
-          "accept-language": "de-DE",
-          "dmp-api-version": "v2.0",
-          "dmp-client-info": "Android/7.0/VW Connect/App/2.9.4",
-          accept: "application/json;charset=UTF-8",
-        };
-      }
       if (this.config.type === "id") {
         url = "https://mobileapi.apps.emea.vwapps.io/vehicles";
         headers = {
@@ -1223,7 +1211,7 @@ class VwWeConnect {
           "content-type": "application/json",
           "content-version": "1",
           "x-newrelic-id": "VgAEWV9QDRAEXFlRAAYPUA==",
-          "user-agent": "WeConnect/5 CFNetwork/1206 Darwin/20.1.0",
+          "user-agent": this.userAgent,
           "accept-language": "de-de",
           authorization: "Bearer " + this.config.atoken,
         };
@@ -1255,11 +1243,12 @@ class VwWeConnect {
             if (this.config.type === "id") {
               body.data.forEach((element) => {
                 const vin = element.vin;
-
+                if (!vin) {
+                  this.log.info("No vin found for:" + JSON.stringify(element));
+                  return;
+                }
                 this.vinArray.push(vin);
 
-                const adapter = this;
-
                 traverse(element).forEach(function (value) {
                   if (this.path.length > 0 && this.isLeaf) {
                     const modPath = this.path;
@@ -1273,36 +1262,6 @@ class VwWeConnect {
                         modPath.splice(parentIndex + 1, 1);
                       }
                     });
-                    if (typeof value === "object") {
-                      value = JSON.stringify(value);
-                    }
-                  }
-                });
-              });
-              resolve();
-              return;
-            }
-            if (this.config.type === "go") {
-              body.forEach((element) => {
-                const vin = element.vehicle.vin;
-                const adapter = this;
-
-                const result = body.vehicleData;
-
-                traverse(element).forEach(function (value) {
-                  if (this.path.length > 0 && this.isLeaf) {
-                    const modPath = this.path;
-                    this.path.forEach((pathElement, pathIndex) => {
-                      if (!isNaN(parseInt(pathElement))) {
-                        let stringPathIndex = parseInt(pathElement) + 1 + "";
-                        while (stringPathIndex.length < 2) stringPathIndex = "0" + stringPathIndex;
-                        const key = this.path[pathIndex - 1] + stringPathIndex;
-                        const parentIndex = modPath.indexOf(pathElement) - 1;
-                        modPath[parentIndex] = key;
-                        modPath.splice(parentIndex + 1, 1);
-                      }
-                    });
-
                     if (typeof value === "object") {
                       value = JSON.stringify(value);
                     }
@@ -1343,7 +1302,7 @@ class VwWeConnect {
       "content-type": "application/json",
       "content-version": "1",
       "x-newrelic-id": "VgAEWV9QDRAEXFlRAAYPUA==",
-      "user-agent": "WeConnect/5 CFNetwork/1206 Darwin/20.1.0",
+      "user-agent": this.userAgent,
       "accept-language": "de-de",
       authorization: "Bearer " + this.config.atoken,
       wc_access_token: this.config.wc_access_token,
@@ -1531,7 +1490,7 @@ class VwWeConnect {
             "content-type": "application/json",
             "content-version": "1",
             "x-newrelic-id": "VgAEWV9QDRAEXFlRAAYPUA==",
-            "user-agent": "WeConnect/5 CFNetwork/1206 Darwin/20.1.0",
+            "user-agent": this.userAgent,
             "accept-language": "de-de",
             authorization: "Bearer " + this.config.atoken,
           },
@@ -1653,7 +1612,7 @@ class VwWeConnect {
             "content-type": "application/json",
             accept: "*/*",
             "accept-language": "de-de",
-            "user-agent": "WeConnect/5 CFNetwork/1206 Darwin/20.1.0",
+            "user-agent": this.userAgent,
             "content-version": "1",
             "x-newrelic-id": "VgAEWV9QDRAEXFlRAAYPUA==",
             authorization: "Bearer " + this.config.atoken,
@@ -1704,7 +1663,7 @@ class VwWeConnect {
             "content-type": "application/json",
             "content-version": "1",
             "x-newrelic-id": "VgAEWV9QDRAEXFlRAAYPUA==",
-            "user-agent": "WeConnect/5 CFNetwork/1206 Darwin/20.1.0",
+            "user-agent": this.userAgent,
             "accept-language": "de-de",
             authorization: "Bearer " + this.config.rtoken,
           },
@@ -1726,11 +1685,9 @@ class VwWeConnect {
             this.xrequest = "com.volkswagen.weconnect";
             this.responseType = "code id_token token";
             setTimeout(() => {
-              this.log.error("Relogin");
-              this.login().catch(() => {
-                this.log.error("Failed relogin");
-              });
-            }, 1 * 60 * 1000);
+              this.log.error("Restart adapter in 10min");
+              this.restart();              
+            }, 10 * 60 * 1000);
             reject();
             return;
           }
@@ -1786,7 +1743,7 @@ class VwWeConnect {
         {
           url: url,
           headers: {
-            "User-Agent": "okhttp/3.7.0",
+            "User-Agent": this.userAgent,
             "X-App-Version": this.xappversion,
             "X-App-Name": this.xappname,
             "X-Market": "de_DE",
@@ -1857,7 +1814,7 @@ class VwWeConnect {
             scope: "All",
           },
           headers: {
-            "User-Agent": "okhttp/3.7.0",
+            "User-Agent": this.userAgent,
             "X-App-Version": this.xappversion,
             "X-App-Name": this.xappname,
             Authorization: "Bearer " + this.config.vwatoken,
@@ -1945,7 +1902,7 @@ class VwWeConnect {
             method: method,
             url: url,
             headers: {
-              "User-Agent": "okhttp/3.7.0",
+              "User-Agent": this.userAgent,
               "X-App-Version": this.xappversion,
               "X-App-Name": this.xappname,
               Authorization: "Bearer " + this.config.vwatoken,
@@ -2008,7 +1965,7 @@ class VwWeConnect {
         {
           url: url,
           headers: {
-            "User-Agent": "okhttp/3.7.0",
+            "User-Agent": this.userAgent,
             "X-App-Version": this.xappversion,
             "X-App-Name": this.xappname,
             "If-None-Match": this.etags[url] || "",
@@ -2326,7 +2283,7 @@ class VwWeConnect {
       this.log.debug(body);
       this.log.debug(contentType);
       const headers = {
-        "User-Agent": "okhttp/3.7.0",
+        "User-Agent": this.userAgent,
         "X-App-Version": this.xappversion,
         "X-App-Name": this.xappname,
         Authorization: "Bearer " + this.config.vwatoken,
@@ -2384,7 +2341,7 @@ class VwWeConnect {
       this.log.debug(JSON.stringify(body));
       this.log.debug(contentType);
       const headers = {
-        "User-Agent": "okhttp/3.7.0",
+        "User-Agent": this.userAgent,
         "X-App-Version": this.xappversion,
         "X-App-Name": this.xappname,
         Authorization: "Bearer " + this.config.vwatoken,
@@ -2450,7 +2407,7 @@ class VwWeConnect {
         {
           url: url,
           headers: {
-            "user-agent": "okhttp/3.7.0",
+            "user-agent": this.userAgent,
             "X-App-version": this.xappversion,
             "X-App-name": this.xappname,
             authorization: "Bearer " + this.config.vwatoken,
@@ -2499,7 +2456,7 @@ class VwWeConnect {
                 {
                   url: url,
                   headers: {
-                    "user-agent": "okhttp/3.7.0",
+                    "user-agent": this.userAgent,
                     "Content-Type": "application/json",
                     "X-App-version": this.xappversion,
                     "X-App-name": this.xappname,
