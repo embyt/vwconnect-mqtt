@@ -1,7 +1,7 @@
 import nconf from "nconf";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
-import mqtt, { MqttClient } from "mqtt";
+import mqtt from "mqtt";
 import * as api from "./vwconnectapi.cjs";
 
 function setupConfig() {
@@ -15,7 +15,7 @@ function setupConfig() {
       vwc: {
         type: "id",
         pollInterval: 10 * 60, // s
-        fastPollInterval: 5 * 60, // s
+        fastPollInterval: 1 * 60, // s
       },
       mqtt: {
         prefix: "vwconnect",
@@ -80,13 +80,41 @@ function extractData(data: api.IIdData) {
     }
   }
 
-  // check if charging
-  return data.data?.chargingStatus?.chargePower_kW ? true : false;
+  let doFastPoll = false; // default
+
+  // check SoC
+  const soc = data.data?.batteryStatus?.currentSOC_pct;
+  // did state of charge change?
+  if (soc !== undefined && soc !== lastSoc) {
+    // is this the first data set or a real change?
+    if (lastSoc !== undefined) {
+      const now = new Date().getTime();
+      // if this is not the first change, we can determine the change rate
+      if (lastSocChange !== undefined) {
+        // determine change rate
+        const changeRate = (now - lastSocChange) / (Math.abs(lastSoc - soc) * 1000); // s per percent
+        // if we change faster than 1 % in 15 min, we switch to fast polling
+        if (changeRate < 15 * 60) {
+          doFastPoll = true;
+        }
+      }
+      lastSocChange = now;
+    }
+    lastSoc = soc;
+  }
+
+  // also check if charging, then we always switch to fast polling
+  if (data.data?.chargingStatus?.chargePower_kW) {
+    doFastPoll = true;
+  }
+  return doFastPoll;
 }
 
 setupConfig();
 const vwConn = setupVwConnectApi();
 const mqttclient = setupMqtt();
+let lastSoc: number | undefined; // SoC in percent
+let lastSocChange: number | undefined; // timestamp in ms
 
 // login, read vehicles and initial read of data
 console.log("login and get initial status");
