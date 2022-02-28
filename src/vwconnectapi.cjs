@@ -657,7 +657,7 @@ class VwWeConnect {
                                     reject();
                                     return;
                                   }
-                                  this.log.info("Auto accept succesful. Restart adapter in 10sec");
+                                  this.log.info("Auto accept succesful. Restart adapter in 10 sec");
                                   setTimeout(() => {
                                     this.restart();
                                   }, 10 * 1000);
@@ -1215,9 +1215,10 @@ class VwWeConnect {
         },
         (err, resp, body) => {
           if (err || (resp && resp.statusCode >= 400)) {
-            err && this.log.error(err);
-            resp && this.log.error(resp.statusCode);
+            err && this.log.error(`getVehicles err: ${err}`);
+            resp && this.log.error(`getVehicles err code: ${resp.statusCode}`);
             reject();
+            return;
           }
           try {
             if (body.errorCode) {
@@ -1278,8 +1279,8 @@ class VwWeConnect {
           }
         },
       );
+      this.log.debug("END getVehicles");
     });
-    this.log.debug("END getVehicles");
   }
 
   getWcData(limit) {
@@ -1674,8 +1675,8 @@ class VwWeConnect {
             this.xrequest = "com.volkswagen.weconnect";
             this.responseType = "code id_token token";
             setTimeout(() => {
-              this.log.error("Restart adapter in 10min");
-              this.restart();              
+              this.log.error("Restart adapter after 10 min timeout");
+              this.restart();
             }, 10 * 60 * 1000);
             reject();
             return;

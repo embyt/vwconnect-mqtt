@@ -122,7 +122,7 @@ await vwConn.getData();
 
 // start endless loop
 let doFastPoll = false;
-while (true) {
+while (vwConn.vinArray.length > 0) {
   // publish data to mqtt
   doFastPoll = extractData(vwConn.idData);
 
@@ -147,4 +147,5 @@ while (true) {
   );
 }
 
-// mqttclient.end();
+console.error("No vehicles found. Exiting");
+mqttclient.end();
