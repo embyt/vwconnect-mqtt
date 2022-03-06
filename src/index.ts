@@ -124,6 +124,7 @@ await vwConn.getData();
 let doFastPoll = false;
 while (vwConn.vinArray.length > 0) {
   // publish data to mqtt
+  console.log("publish data");
   doFastPoll = extractData(vwConn.idData);
 
   // pause

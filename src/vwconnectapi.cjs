@@ -140,7 +140,16 @@ class VwWeConnect {
     ];
   }
 
+  /*
+  restart() {
+    // just crash the app and rely on systemd to restart it
+    console.error("restarting now.");
+    throw Error("restarting");
+  }
+  */
+
   finishedReading() {
+    // this produces a lot of logging...
     this.log.debug(`Id: ${this.boolFinishIdData} HomeCharge: ${this.boolFinishHomecharging}` +
       ` ChargePay: ${this.boolFinishChargeAndPay} Stat: ${this.boolFinishStations} Vehic: ${this.boolFinishVehicles}`);
     return (
@@ -329,11 +338,20 @@ class VwWeConnect {
 
     // resolve only after all the different calls have finished reading their data
     // await promise at the end of this method
+    // add safety timeout
+    let pollCounter = 0;
     let promise = new Promise((resolve, reject) => {
       const finishedReadingInterval = setInterval(() => {
+        pollCounter += 1;
         if (this.finishedReading()) {
           clearInterval(finishedReadingInterval);
           resolve("done!");
+        }
+        // check for timeout
+        if (pollCounter > 300) {
+          this.log.error("timeout waiting for answers");
+          clearInterval(finishedReadingInterval);
+          reject("timeout!");
         }
       }, 1000);
     });
@@ -401,7 +419,7 @@ class VwWeConnect {
         this.log.error("Login Failed");
       });
 
-    let result = await promise; // wait for the promise from the start to resolve
+    await promise; // wait for the promise from the start to resolve
     this.log.debug("getData END");
     return this.idData;
   }
@@ -1688,7 +1706,7 @@ class VwWeConnect {
             if (this.type === "Wc") {
               //wallcharging relogin no refresh token available
               this.login().catch(() => {
-                this.log.debug("No able to Login in WeCharge");
+                this.log.debug("Not able to Login in WeCharge");
               });
             }
             resolve();
