@@ -88,19 +88,19 @@ function extractData(data: api.IIdData) {
   if (soc !== undefined && soc !== lastSoc) {
     // is this the first data set or a real change?
     if (lastSoc !== undefined) {
-      const now = new Date().getTime();
-      // if this is not the first change, we can determine the change rate
-      if (lastSocChange !== undefined) {
-        // determine change rate
-        const changeRate = (now - lastSocChange) / (Math.abs(lastSoc - soc) * 1000); // s per percent
-        // if we change faster than 1 % in 15 min, we switch to fast polling
-        if (changeRate < 15 * 60) {
-          doFastPoll = true;
-        }
-      }
-      lastSocChange = now;
+      // change detected; fast polling
+      doFastPoll = true;
+      lastSocChange = new Date().getTime();
     }
     lastSoc = soc;
+  }
+  // do we know when the last soc change appeared?
+  else if (lastSocChange !== undefined) {
+    // determine timeout of last change
+    // if we change faster than 1 % in 15 min, we keep fast polling
+    if (new Date().getTime() - lastSocChange < 15 * 60 * 1000) {
+      doFastPoll = true;
+    }
   }
 
   // also check if charging, then we always switch to fast polling
