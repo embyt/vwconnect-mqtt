@@ -37,7 +37,7 @@ export interface IIdData {
     plugStatus: {
       value: {
         carCapturedTimestamp: string;
-        plugConnectionState: "connected";
+        plugConnectionState: "connected" | "disconnected";
         plugLockState: "unlocked";
         externalPower: "unavailable";
         ledColor: "none";
