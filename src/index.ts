@@ -21,12 +21,13 @@ function setupConfig() {
         prefix: "vwconnect",
       },
       data: {
-        timestamp: "batteryStatus.carCapturedTimestamp",
-        soc: "batteryStatus.currentSOC_pct",
-        range: "batteryStatus.cruisingRangeElectric_km",
-        charging_power: "chargingStatus.chargePower_kW",
-        remaining_charging_time: "chargingStatus.remainingChargingTimeToComplete_min",
-        target_soc: "chargingSettings.targetSOC_pct",
+        timestamp: "charging.batteryStatus.value.carCapturedTimestamp",
+        soc: "charging.batteryStatus.value.currentSOC_pct",
+        range: "charging.batteryStatus.value.cruisingRangeElectric_km",
+        charging_power: "charging.chargingStatus.value.chargePower_kW",
+        remaining_charging_time:
+          "charging.chargingStatus.value.remainingChargingTimeToComplete_min",
+        target_soc: "charging.chargingSettings.value.targetSOC_pct",
       },
     });
 }
@@ -61,7 +62,7 @@ function extractData(data: api.IIdData) {
   const subscriptions = nconf.get("data");
   const topics = Object.keys(subscriptions);
   const values = topics.map((curTopic) => {
-    let curObj: any = data.data;
+    let curObj: any = data;
     const topicParts = subscriptions[curTopic].split(".") as string[];
     topicParts.forEach((curSect) => {
       //console.log("it", curObj, curSect, curObj?.[curSect]);
@@ -83,7 +84,7 @@ function extractData(data: api.IIdData) {
   let doFastPoll = false; // default
 
   // check SoC
-  const soc = data.data?.batteryStatus?.currentSOC_pct;
+  const soc = data.charging?.batteryStatus?.value.currentSOC_pct;
   // did state of charge change?
   if (soc !== undefined && soc !== lastSoc) {
     // is this the first data set or a real change?
@@ -104,7 +105,7 @@ function extractData(data: api.IIdData) {
   }
 
   // also check if charging, then we always switch to fast polling
-  if (data.data?.chargingStatus?.chargePower_kW) {
+  if (data.charging?.chargingStatus?.value.chargePower_kW) {
     doFastPoll = true;
   }
   return doFastPoll;

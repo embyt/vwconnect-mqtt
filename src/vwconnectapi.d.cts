@@ -1,34 +1,56 @@
 export interface IIdData {
-  data: {
+  charging: {
     batteryStatus: {
-      carCapturedTimestamp: string;
-      currentSOC_pct: number;
-      cruisingRangeElectric_km: number;
+      value: {
+        carCapturedTimestamp: string;
+        currentSOC_pct: number;
+        cruisingRangeElectric_km: number;
+      };
     };
     chargingStatus: {
-      carCapturedTimestamp: string;
-      remainingChargingTimeToComplete_min: number;
-      chargingState: 'readyForCharging';
-      chargeMode: 'manual';
-      chargePower_kW: number;
-      chargeRate_kmph: number;
-    }
+      value: {
+        carCapturedTimestamp: string;
+        remainingChargingTimeToComplete_min: number;
+        chargingState: "readyForCharging";
+        chargeMode: "manual" | "off";
+        chargePower_kW: number;
+        chargeRate_kmph: number;
+        chargeType: "invalid";
+        chargingSettings: "default";
+      };
+    };
     chargingSettings: {
-      carCapturedTimestamp: string;
-      maxChargeCurrentAC: 'maximum';
-      autoUnlockPlugWhenCharged: 'permanent';
-      targetSOC_pct: number;
-    },
-    chargeMode: any;
-    plugStatus: any;
-    climatisationStatus: any;
-    climatisationSettings: any;
-    climatisationTimer: any;
-    windowHeatingStatus: any;
-    rangeStatus: any;
-    capabilityStatus: any;
-    readinessStatus: any;
+      value: {
+        carCapturedTimestamp: string;
+        maxChargeCurrentAC: "maximum";
+        autoUnlockPlugWhenCharged: "permanent";
+        autoUnlockPlugWhenChargedAC: "permanent";
+        targetSOC_pct: number;
+      };
+    };
+    chargeMode: {
+      value: {
+        preferredChargeMode: "manual";
+        availableChargeModes: ["invalid"];
+      };
+    };
+    plugStatus: {
+      value: {
+        carCapturedTimestamp: string;
+        plugConnectionState: "connected";
+        plugLockState: "unlocked";
+        externalPower: "unavailable";
+        ledColor: "none";
+      };
+    };
   };
+  automation: any; // not queried
+  userCapabilities: any; // not queried
+  climatisation: any; // not queried
+  climatisationTimers: any; // not queried
+  fuelStatus: any; // not queried
+  readiness: any; // not queried
+  chargingProfiles: any; // not queried
 }
 
 export class VwWeConnect {

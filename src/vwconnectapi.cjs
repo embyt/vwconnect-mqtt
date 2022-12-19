@@ -150,8 +150,10 @@ class VwWeConnect {
 
   finishedReading() {
     // this produces a lot of logging...
-    this.log.debug(`Id: ${this.boolFinishIdData} HomeCharge: ${this.boolFinishHomecharging}` +
-      ` ChargePay: ${this.boolFinishChargeAndPay} Stat: ${this.boolFinishStations} Vehic: ${this.boolFinishVehicles}`);
+    this.log.debug(
+      `Id: ${this.boolFinishIdData} HomeCharge: ${this.boolFinishHomecharging}` +
+        ` ChargePay: ${this.boolFinishChargeAndPay} Stat: ${this.boolFinishStations} Vehic: ${this.boolFinishVehicles}`,
+    );
     return (
       (this.boolFinishIdData || this.config.chargerOnly) &&
       this.boolFinishHomecharging &&
@@ -529,7 +531,7 @@ class VwWeConnect {
                   "/login/identifier",
                 headers: {
                   "Content-Type": "application/x-www-form-urlencoded",
-                  "User-Agent":this.userAgent,
+                  "User-Agent": this.userAgent,
                   Accept:
                     "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3",
                   "Accept-Language": "en-US,en;q=0.9",
@@ -586,7 +588,7 @@ class VwWeConnect {
                         "/login/authenticate",
                       headers: {
                         "Content-Type": "application/x-www-form-urlencoded",
-                        "User-Agent":this.userAgent,
+                        "User-Agent": this.userAgent,
                         Accept:
                           "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3",
                         "Accept-Language": "en-US,en;q=0.9",
@@ -628,7 +630,7 @@ class VwWeConnect {
                               url: "https://" + resp.request.host + resp.headers.location,
                               jar: this.jar,
                               headers: {
-                                "User-Agent":this.userAgent,
+                                "User-Agent": this.userAgent,
                                 Accept:
                                   "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3",
                                 "Accept-Language": "en-US,en;q=0.9",
@@ -652,7 +654,7 @@ class VwWeConnect {
                                   jar: this.jar,
                                   headers: {
                                     "Content-Type": "application/x-www-form-urlencoded",
-                                    "User-Agent":this.userAgent,
+                                    "User-Agent": this.userAgent,
                                     Accept:
                                       "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3",
                                     "Accept-Language": "en-US,en;q=0.9",
@@ -693,7 +695,7 @@ class VwWeConnect {
                             const location = resp.headers.location;
                             this.log.error(
                               "login Error: " +
-                              location.substring(location.indexOf("error="), location.length - 1),
+                                location.substring(location.indexOf("error="), location.length - 1),
                             );
                           } else {
                             this.log.error(
@@ -709,7 +711,7 @@ class VwWeConnect {
                           {
                             url: resp.headers.location || "",
                             headers: {
-                              "User-Agent":this.userAgent,
+                              "User-Agent": this.userAgent,
                               Accept:
                                 "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3",
                               "Accept-Language": "en-US,en;q=0.9",
@@ -734,7 +736,7 @@ class VwWeConnect {
                                   url: getRequest.uri.href,
                                   headers: {
                                     "Content-Type": "application/x-www-form-urlencoded",
-                                    "User-Agent":this.userAgent,
+                                    "User-Agent": this.userAgent,
                                     Accept:
                                       "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3",
                                     "Accept-Language": "en-US,en;q=0.9",
@@ -751,7 +753,9 @@ class VwWeConnect {
                                   if (err) {
                                     this.getTokens(getRequest, code_verifier, reject, resolve);
                                   } else {
-                                    this.log.error("No Token received. Please try to logout and login in the VW app or select type VWv2 in the settings");
+                                    this.log.error(
+                                      "No Token received. Please try to logout and login in the VW app or select type VWv2 in the settings",
+                                    );
                                     try {
                                       this.log.debug(JSON.stringify(body));
                                     } catch (err) {
@@ -801,7 +805,7 @@ class VwWeConnect {
             "&redirect_uri=weconnect://authenticated",
           headers: {
             Host: "login.apps.emea.vwapps.io",
-            "user-agent":this.userAgent,
+            "user-agent": this.userAgent,
             accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "accept-language": "de-de",
           },
@@ -962,7 +966,7 @@ class VwWeConnect {
         //configure for wallcharging login
 
         this.refreshTokenInterval = setInterval(() => {
-          this.refreshIDToken().catch(() => { });
+          this.refreshIDToken().catch(() => {});
         }, 0.9 * 60 * 60 * 1000); // 0.9hours
 
         //this.config.type === "wc"
@@ -1325,9 +1329,9 @@ class VwWeConnect {
       .then((body) => {
         body.forEach((subs) => {
           this.genericRequest(
-            "https://wecharge.apps.emea.vwapps.io/charge-and-pay/v1/user/tariffs/" + subs.tariff_id,
+            `https://wecharge.apps.emea.vwapps.io/charge-and-pay/v1/user/tariffs/${subs.tariff_id}`,
             header,
-            "wecharge.chargeandpay.tariffs." + subs.tariff_id,
+            `wecharge.chargeandpay.tariffs.${subs.tariff_id}`,
             [404],
           ).catch((hideError) => {
             if (hideError) {
@@ -1346,9 +1350,7 @@ class VwWeConnect {
         this.log.error("Failed to get subscription");
       });
     this.genericRequest(
-      "https://wecharge.apps.emea.vwapps.io/charge-and-pay/v1/charging/records?limit=" +
-      limit +
-      "&offset=0",
+      `https://wecharge.apps.emea.vwapps.io/charge-and-pay/v1/charging/records?limit=${limit}&offset=0`,
       header,
       "wecharge.chargeandpay.records",
       [404],
@@ -1381,10 +1383,7 @@ class VwWeConnect {
         body.forEach((station) => {
           this.log.debug("Station: " + station.name + "/" + station.id);
           this.genericRequest(
-            "https://wecharge.apps.emea.vwapps.io/home-charging/v1/charging/sessions?station_id=" +
-            station.id +
-            "&limit=" +
-            limit,
+            `https://wecharge.apps.emea.vwapps.io/home-charging/v1/charging/sessions?station_id=${station.id}&limit=${limit}`,
             header,
             "wecharge.homecharging.stations." + station.name + ".sessions",
             [404],
@@ -1392,10 +1391,9 @@ class VwWeConnect {
           )
             .then((body) => {
               this.log.debug(
-                "wecharge.homecharging.stations." +
-                station.name +
-                ".sessions.newesItem: " +
-                JSON.stringify(body[0]),
+                `wecharge.homecharging.stations.${
+                  station.name
+                }.sessions.newesItem: ${JSON.stringify(body[0])}`,
               );
             })
             .catch((hideError) => {
@@ -1417,10 +1415,7 @@ class VwWeConnect {
       });
     const dt = new Date();
     this.genericRequest(
-      "https://wecharge.apps.emea.vwapps.io/home-charging/v1/charging/records?start_date_time_after=2020-05-01T00:00:00.000Z&start_date_time_before=" +
-      dt.toISOString() +
-      "&limit=" +
-      limit,
+      `https://wecharge.apps.emea.vwapps.io/home-charging/v1/charging/records?start_date_time_after=2020-05-01T00:00:00.000Z&start_date_time_before=${dt.toISOString()}&limit=${limit}`,
       header,
       "wecharge.homecharging.records",
       [404],
@@ -1491,8 +1486,9 @@ class VwWeConnect {
       this.log.debug("START getIdStatus");
       request.get(
         {
-          url: "https://mobileapi.apps.emea.vwapps.io/vehicles/" + vin + "/status",
-
+          url:
+            // use jobs=all to get all data
+            `https://mobileapi.apps.emea.vwapps.io/vehicles/${vin}/selectivestatus?jobs=charging`,
           headers: {
             accept: "*/*",
             "content-type": "application/json",
@@ -1543,7 +1539,7 @@ class VwWeConnect {
 
             resolve();
           } catch (err) {
-            this.log.error(err);
+            this.log.error(`getIdStatus error: ${err}`);
             reject();
           }
         },
@@ -1636,7 +1632,7 @@ class VwWeConnect {
               err && this.log.error(err);
               resp && this.log.error(resp.statusCode.toString());
               body && this.log.error(JSON.stringify(body));
-              this.refreshIDToken().catch(() => { });
+              this.refreshIDToken().catch(() => {});
               this.log.error("Refresh Token");
               reject();
               return;
