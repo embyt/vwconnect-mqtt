@@ -1,153 +1,201 @@
-import nconf from "nconf";
-import { fileURLToPath } from "url";
-import { dirname } from "path";
+// Reads the state of charge of a VW ID vehicle and publishes it to MQTT.
+//
+// VW retired the WeConnect app API for third-party clients in June 2026, so this
+// reads from the EU Data Act portal instead, which publishes a dataset of the
+// vehicle every 15 minutes. A one-time browser setup is required, see README.
+import { readFileSync } from "node:fs";
+import { inflateRawSync } from "node:zlib";
 import mqtt from "mqtt";
-import * as api from "./vwconnectapi.cjs";
 
-function setupConfig() {
-  const __dirname = dirname(fileURLToPath(import.meta.url));
-  // setup configuration
-  nconf
-    .argv()
-    .env()
-    .file({ file: `${__dirname}/vwconnect-mqtt.conf.json` })
-    .defaults({
-      vwc: {
-        type: "id",
-        pollInterval: 10 * 60, // s
-        fastPollInterval: 1 * 60, // s
-      },
-      mqtt: {
-        prefix: "vwconnect",
-      },
-      data: {
-        timestamp: "charging.batteryStatus.value.carCapturedTimestamp",
-        soc: "charging.batteryStatus.value.currentSOC_pct",
-        range: "charging.batteryStatus.value.cruisingRangeElectric_km",
-        charging_power: "charging.chargingStatus.value.chargePower_kW",
-        remaining_charging_time:
-          "charging.chargingStatus.value.remainingChargingTimeToComplete_min",
-        target_soc: "charging.chargingSettings.value.targetSOC_pct",
+const conf = JSON.parse(readFileSync(process.argv[2] ?? "vwconnect-mqtt.conf.json", "utf8"));
+const POLL_MS = (conf.vwc.pollInterval ?? 60) * 1000;
+const TOPIC = `${conf.mqtt.prefix ?? "vwconnect"}/soc`;
+
+const PORTAL = "https://eu-data-act.drivesomethinggreater.com";
+const CLIENT_ID = "9b58543e-1c15-4193-91d5-8a14145bebb0@apps_vw-dilab_com"; // the portal's OIDC client for VW passenger cars
+const UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36";
+
+// --- minimal http client: shared cookie jar, follows redirects across hosts ---
+const cookies = new Map<string, string>();
+
+async function http(
+  url: string,
+  opts: { form?: Record<string, string>; headers?: Record<string, string> } = {},
+) {
+  let body = opts.form && new URLSearchParams(opts.form).toString();
+  for (;;) {
+    const res = await fetch(url, {
+      method: body ? "POST" : "GET",
+      body,
+      redirect: "manual",
+      headers: {
+        "user-agent": UA,
+        cookie: [...cookies].map((c) => c.join("=")).join("; "),
+        ...(body && { "content-type": "application/x-www-form-urlencoded" }),
+        ...opts.headers,
       },
     });
-}
-
-function setupVwConnectApi() {
-  // setup vw connect interface
-  const vwConn = new api.VwWeConnect();
-  vwConn.setLogLevel("DEBUG"); // optional, ERROR (default), INFO, WARN or DEBUG
-  vwConn.setCredentials(nconf.get("vwc:username"), nconf.get("vwc:password"), undefined);
-  vwConn.setConfig(nconf.get("vwc:type")); // type
-  return vwConn;
-}
-
-function setupMqtt() {
-  // setup mqtt interface
-  const mqttclient = mqtt.connect(nconf.get("mqtt:host"), {
-    clientId: "vwconnect",
-    username: nconf.get("mqtt:username"),
-    password: nconf.get("mqtt:password"),
-  });
-  mqttclient.on("connect", () => {
-    console.log("mqtt: connected");
-  });
-  mqttclient.on("error", (error) => {
-    console.error("mqtt: Can't connect", error);
-  });
-  return mqttclient;
-}
-
-function extractData(data: api.IIdData) {
-  // loop through all subscribed data topics
-  const subscriptions = nconf.get("data");
-  const topics = Object.keys(subscriptions);
-  const values = topics.map((curTopic) => {
-    let curObj: any = data;
-    const topicParts = subscriptions[curTopic].split(".") as string[];
-    topicParts.forEach((curSect) => {
-      //console.log("it", curObj, curSect, curObj?.[curSect]);
-      curObj = curObj?.[curSect];
-    });
-    return curObj;
-  });
-  console.log("data", topics, values);
-
-  // publish to mqtt
-  for (let i = 0; i < topics.length; i++) {
-    if (values[i] !== undefined) {
-      mqttclient.publish(`${nconf.get("mqtt:prefix")}/${topics[i]}`, `${values[i]}`);
-    } else {
-      console.warn("topic not found:", topics[i]);
+    for (const c of res.headers.getSetCookie()) {
+      const [name, ...value] = c.split(";")[0].split("=");
+      cookies.set(name, value.join("="));
     }
-  }
-
-  let doFastPoll = false; // default
-
-  // check SoC
-  const soc = data.charging?.batteryStatus?.value.currentSOC_pct;
-  // did state of charge change?
-  if (soc !== undefined && soc !== lastSoc) {
-    // is this the first data set or a real change?
-    if (lastSoc !== undefined) {
-      // change detected; fast polling
-      doFastPoll = true;
-      lastSocChange = new Date().getTime();
+    const location = res.headers.get("location");
+    if (location) {
+      url = new URL(location, url).href;
+      body = undefined;
+      continue;
     }
-    lastSoc = soc;
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (res.status >= 400)
+      throw new Error(`${url}: HTTP ${res.status} ${buf.toString("utf8").slice(0, 200)}`);
+    return { url, buf, text: () => buf.toString("utf8") };
   }
-  // do we know when the last soc change appeared?
-  else if (lastSocChange !== undefined) {
-    // determine timeout of last change
-    // if we change faster than 1 % in 15 min, we keep fast polling
-    if (new Date().getTime() - lastSocChange < 15 * 60 * 1000) {
-      doFastPoll = true;
-    }
-  }
-
-  // also check if charging, then we always switch to fast polling
-  if (data.charging?.chargingStatus?.value.chargePower_kW) {
-    doFastPoll = true;
-  }
-  return doFastPoll;
 }
 
-setupConfig();
-const vwConn = setupVwConnectApi();
-const mqttclient = setupMqtt();
-let lastSoc: number | undefined; // SoC in percent
-let lastSocChange: number | undefined; // timestamp in ms
-
-// login, read vehicles and initial read of data
-console.log("login and get initial status");
-await vwConn.getData();
-
-// start endless loop
-let doFastPoll = false;
-while (vwConn.vinArray.length > 0) {
-  // publish data to mqtt
-  console.log("publish data");
-  doFastPoll = extractData(vwConn.idData);
-
-  // pause
-  const timeout = nconf.get(doFastPoll ? "vwc:fastPollInterval" : "vwc:pollInterval") * 1000;
-  await new Promise((resolve) => setTimeout(resolve, timeout));
-
-  // renew communication tokens
-  console.log("refresh token");
-  await vwConn.refreshIDToken().catch(() => {
-    console.error("error refreshing id token");
-  });
-
-  // get data
-  console.log("get status");
-  await Promise.all(
-    vwConn.vinArray.map((vin) => {
-      vwConn.getIdStatus(vin).catch(() => {
-        console.error("get id status Failed");
-      });
-    }),
+async function apiJson(path: string, headers?: Record<string, string>): Promise<any> {
+  return JSON.parse(
+    (await http(PORTAL + path, { headers: { accept: "application/json", ...headers } })).text(),
   );
 }
 
-console.error("No vehicles found. Exiting");
-mqttclient.end();
+// --- login: OIDC code flow on identity.vwgroup.io, lands back on the portal ---
+function formFields(page: { url: string; text: () => string }) {
+  const fields: Record<string, string> = {};
+  for (const m of page.text().matchAll(/<input[^>]*\bname="([^"]+)"[^>]*\bvalue="([^"]*)"/g))
+    fields[m[1]] = m[2];
+  // csrf/hmac/relayState live in the inline window._IDK script of the identity pages
+  const scripted: [string, RegExp][] = [
+    ["_csrf", /csrf_token\s*[:=]\s*['"]([^'"]+)/],
+    ["hmac", /"hmac"\s*:\s*"([^"]+)"/],
+    ["relayState", /"relayState"\s*:\s*"([^"]+)"/],
+  ];
+  for (const [key, re] of scripted) {
+    const value = page.text().match(re)?.[1];
+    if (value) fields[key] = value;
+  }
+  return fields;
+}
+
+function formAction(page: { url: string; text: () => string }) {
+  const action = page.text().match(/<form[^>]*\baction="([^"]+)"/)?.[1];
+  return action ? new URL(action, page.url).href : undefined;
+}
+
+async function login() {
+  console.log("logging in");
+  cookies.clear();
+  await http(PORTAL + "/"); // prime the portal session cookies
+  const authorize = new URLSearchParams({
+    client_id: CLIENT_ID,
+    response_type: "code",
+    scope: "openid cars profile",
+    state: "de__en__VOLKSWAGEN_PASSENGER_CARS",
+    redirect_uri: `${PORTAL}/login`,
+    prompt: "login",
+  });
+  let page = await http(`https://identity.vwgroup.io/oidc/v1/authorize?${authorize}`); // ends on the e-mail form
+  const emailAction = formAction(page);
+  if (!emailAction) throw new Error(`login form not found on ${page.url}`);
+  page = await http(emailAction, { form: { ...formFields(page), email: conf.vwc.username } });
+  // the password page renders its form via JS, so there may be no <form action>:
+  // its POST target is then the landing URL itself (without the query string)
+  page = await http(formAction(page) ?? page.url.split("?")[0], {
+    form: { ...formFields(page), email: conf.vwc.username, password: conf.vwc.password },
+  });
+  if (!page.url.startsWith(PORTAL))
+    throw new Error(
+      `login failed (wrong credentials, or portal not yet set up — see README): ended on ${page.url}`,
+    );
+  console.log("login successful");
+}
+
+// --- dataset handling ---
+function datasetJson(zip: Buffer): { Data: { dataFieldName: string; value: string }[] } {
+  // the dataset is a zip holding a single JSON file: decode via its local file header
+  const nameLen = zip.readUInt16LE(26);
+  const extraLen = zip.readUInt16LE(28);
+  const start = 30 + nameLen + extraLen;
+  let size = zip.readUInt32LE(18);
+  if (size === 0) size = zip.indexOf(Buffer.from("PK\x07\x08", "latin1"), start) - start; // streamed entry: size is only in the trailing descriptor
+  const raw = zip.subarray(start, start + size);
+  return JSON.parse((zip.readUInt16LE(8) === 8 ? inflateRawSync(raw) : raw).toString("utf8"));
+}
+
+function extractSoc(dataset: {
+  Data: { dataFieldName: string; value: string }[];
+}): number | undefined {
+  for (const field of ["state_of_charge", "hv_soc"]) {
+    const values = dataset.Data.filter((d) => d.dataFieldName === field)
+      .map((d) => Number(d.value))
+      .filter((v) => v >= 0 && v <= 100);
+    if (values.length) return values.at(-1); // last occurrence is the freshest reading
+  }
+}
+
+async function getIdentifier(vin: string): Promise<string> {
+  const meta = await apiJson(`/proxy_api/euda-apim/datarequest/vehicles/${vin}/metadata/partial`);
+  if (!meta.Identifier)
+    throw new Error("no continuous data request configured on the portal — see README");
+  return meta.Identifier;
+}
+
+// --- main ---
+const mqttclient = mqtt.connect(conf.mqtt.host, {
+  clientId: "vwconnect",
+  username: conf.mqtt.username,
+  password: conf.mqtt.password,
+});
+mqttclient.on("connect", () => console.log("mqtt: connected"));
+mqttclient.on("error", (error) => console.error("mqtt:", error.message));
+
+await login();
+const vehicles = await apiJson("/proxy_api/consent/me/vehicles?viewPosition=FRONT_LEFT");
+const vin = (Array.isArray(vehicles) ? vehicles : (vehicles.vehicles ?? []))[0]?.vin;
+if (!vin) throw new Error("no vehicle linked on the EU Data Act portal — see README");
+console.log("using vehicle", vin);
+let identifier = await getIdentifier(vin);
+
+let lastDataset = "";
+for (;;) {
+  try {
+    console.log("polling for new dataset");
+    const list = await apiJson(
+      `/proxy_api/euda-apim/datadelivery/vehicles/${vin}/${identifier}/list`,
+      {
+        type: "partial",
+      },
+    );
+    console.log("found", (Array.isArray(list) ? list : (list.files ?? [])).length, "datasets");
+    const newest = (Array.isArray(list) ? list : (list.files ?? []))
+      .filter((f: any) => f.name && !f.name.endsWith("_no_content_found.zip"))
+      .sort((a: any, b: any) =>
+        String(b.createdOn ?? b.name).localeCompare(String(a.createdOn ?? a.name)),
+      )[0];
+    if (newest && newest.name !== lastDataset) {
+      console.log("downloading dataset", newest.name, "created on", newest.createdOn ?? "unknown");
+      const zip = await http(
+        `${PORTAL}/proxy_api/euda-apim/datadelivery/vehicles/${vin}/${identifier}/download`,
+        {
+          headers: { filename: newest.name, type: "partial" },
+        },
+      );
+      const dataset = datasetJson(zip.buf);
+      console.log("dataset", dataset);
+      const soc = extractSoc(dataset);
+      if (soc !== undefined) {
+        console.log(new Date().toISOString(), "soc:", soc, `(${newest.name})`);
+        mqttclient.publish(TOPIC, String(soc));
+      }
+      lastDataset = newest.name;
+    }
+  } catch (error) {
+    console.error((error as Error).message);
+    // recover from expired sessions and rotated data requests; retry next cycle otherwise
+    await login()
+      .then(async () => (identifier = await getIdentifier(vin)))
+      .catch((err) => console.error(err.message));
+  }
+  console.log("polling done, sleeping for", POLL_MS / 1000, "seconds");
+  await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+}

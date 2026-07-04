@@ -1,18 +1,12 @@
 {
   "compilerOptions": {
-    "outDir": "dist",
-    "module": "esnext",
-    "lib": ["es2019"],
-    "declaration": true,
-    "target": "es2018",
-    "sourceMap": true,
+    "target": "es2023",
+    "module": "nodenext",
+    "lib": ["es2023"],
+    "types": ["node"],
     "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "stripInternal": true,
-    "allowJs": true,
-    "moduleResolution": "node"
+    "noEmit": true,
+    "skipLibCheck": true
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules"]
+  "include": ["src"]
 }

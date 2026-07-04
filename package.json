@@ -1,28 +1,21 @@
 {
   "name": "vwconnect2mqtt",
-  "version": "0.1",
-  "description": "Reads VW connect data and publishes them to mqtt",
-  "main": "index.js",
+  "version": "0.2",
+  "description": "Reads the SoC of a VW ID vehicle and publishes it to mqtt",
+  "type": "module",
+  "engines": {
+    "node": ">=23.6"
+  },
   "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node src/index.ts"
   },
   "author": "Roman Morawek",
   "license": "unlicensed",
-  "type": "module",
   "dependencies": {
-    "@peculiar/webcrypto": "^1.0.22",
-    "axios": "^1.3.3",
-    "mqtt": "^4.2.8",
-    "nconf": "^0.11.3",
-    "ngeohash": "^0.6.3",
-    "request": "^2.88.0",
-    "traverse": "^0.6.6",
-    "uuid": "^8.3.2"
+    "mqtt": "^5.10.1"
   },
   "devDependencies": {
-    "@types/nconf": "^0.10.1",
-    "@types/node": "^16.11.13",
-    "typescript": "^4.5.4"
+    "@types/node": "^24.0.0",
+    "typescript": "^5.6.0"
   }
 }
