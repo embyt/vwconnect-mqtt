@@ -4,10 +4,11 @@
   "description": "Reads the SoC of a VW ID vehicle and publishes it to mqtt",
   "type": "module",
   "engines": {
-    "node": ">=23.6"
+    "node": ">=20"
   },
   "scripts": {
-    "start": "node src/index.ts"
+    "build": "tsc",
+    "start": "node dist/index.js"
   },
   "author": "Roman Morawek",
   "license": "unlicensed",
