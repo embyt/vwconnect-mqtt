@@ -7,7 +7,11 @@ import { readFileSync } from "node:fs";
 import { inflateRawSync } from "node:zlib";
 import mqtt from "mqtt";
 
-const conf = JSON.parse(readFileSync(process.argv[2] ?? "vwconnect-mqtt.conf.json", "utf8"));
+const args = process.argv.slice(2);
+const scanMode = args.includes("--scan"); // diagnostic: list SoC-related fields of all datasets, then exit
+const conf = JSON.parse(
+  readFileSync(args.find((a) => !a.startsWith("--")) ?? "vwconnect-mqtt.conf.json", "utf8"),
+);
 const POLL_MS = (conf.vwc.pollInterval ?? 60) * 1000;
 const TOPIC = `${conf.mqtt.prefix ?? "vwconnect"}/soc`;
 
@@ -125,7 +129,13 @@ function datasetJson(zip: Buffer): { Data: { dataFieldName: string; value: strin
 function extractSoc(dataset: {
   Data: { dataFieldName: string; value: string }[];
 }): number | undefined {
-  for (const field of ["state_of_charge", "hv_soc"]) {
+  const fields = [
+    "state_of_charge",
+    "hv_soc",
+    "battery_state_report.soc",
+    "BMC_NutzbarerSOC_XIX_BMC_HV_02_XIX_HCP4_CANFD03", // raw CAN SoC, reads a few % above the displayed value
+  ];
+  for (const field of fields) {
     const values = dataset.Data.filter((d) => d.dataFieldName === field)
       .map((d) => Number(d.value))
       .filter((v) => v >= 0 && v <= 100);
@@ -141,6 +151,43 @@ async function getIdentifier(vin: string): Promise<string> {
 }
 
 // --- main ---
+await login();
+const vehicles = await apiJson("/proxy_api/consent/me/vehicles?viewPosition=FRONT_LEFT");
+const vin = (Array.isArray(vehicles) ? vehicles : (vehicles.vehicles ?? []))[0]?.vin;
+if (!vin) throw new Error("no vehicle linked on the EU Data Act portal — see README");
+console.log("using vehicle", vin);
+let identifier = await getIdentifier(vin);
+
+// datasets with content, newest first
+async function listDatasets(): Promise<{ name: string; createdOn?: string }[]> {
+  const list = await apiJson(
+    `/proxy_api/euda-apim/datadelivery/vehicles/${vin}/${identifier}/list`,
+    { type: "partial" },
+  );
+  return (Array.isArray(list) ? list : (list.files ?? []))
+    .filter((f: any) => f.name && !f.name.endsWith("_no_content_found.zip"))
+    .sort((a: any, b: any) =>
+      String(b.createdOn ?? b.name).localeCompare(String(a.createdOn ?? a.name)),
+    );
+}
+
+async function downloadDataset(name: string) {
+  const zip = await http(
+    `${PORTAL}/proxy_api/euda-apim/datadelivery/vehicles/${vin}/${identifier}/download`,
+    { headers: { filename: name, type: "partial" } },
+  );
+  return datasetJson(zip.buf);
+}
+
+if (scanMode) {
+  // print every SoC-related field of every available dataset, then exit
+  for (const file of await listDatasets()) {
+    for (const d of (await downloadDataset(file.name)).Data)
+      if (/soc/i.test(d.dataFieldName)) console.log(file.name, "|", d.dataFieldName, "=", d.value);
+  }
+  process.exit(0);
+}
+
 const mqttclient = mqtt.connect(conf.mqtt.host, {
   clientId: "vwconnect",
   username: conf.mqtt.username,
@@ -149,46 +196,26 @@ const mqttclient = mqtt.connect(conf.mqtt.host, {
 mqttclient.on("connect", () => console.log("mqtt: connected"));
 mqttclient.on("error", (error) => console.error("mqtt:", error.message));
 
-await login();
-const vehicles = await apiJson("/proxy_api/consent/me/vehicles?viewPosition=FRONT_LEFT");
-const vin = (Array.isArray(vehicles) ? vehicles : (vehicles.vehicles ?? []))[0]?.vin;
-if (!vin) throw new Error("no vehicle linked on the EU Data Act portal — see README");
-console.log("using vehicle", vin);
-let identifier = await getIdentifier(vin);
-
 let lastDataset = "";
 for (;;) {
   try {
     console.log("polling for new dataset");
-    const list = await apiJson(
-      `/proxy_api/euda-apim/datadelivery/vehicles/${vin}/${identifier}/list`,
-      {
-        type: "partial",
-      },
-    );
-    console.log("found", (Array.isArray(list) ? list : (list.files ?? [])).length, "datasets");
-    const newest = (Array.isArray(list) ? list : (list.files ?? []))
-      .filter((f: any) => f.name && !f.name.endsWith("_no_content_found.zip"))
-      .sort((a: any, b: any) =>
-        String(b.createdOn ?? b.name).localeCompare(String(a.createdOn ?? a.name)),
-      )[0];
-    if (newest && newest.name !== lastDataset) {
-      console.log("downloading dataset", newest.name, "created on", newest.createdOn ?? "unknown");
-      const zip = await http(
-        `${PORTAL}/proxy_api/euda-apim/datadelivery/vehicles/${vin}/${identifier}/download`,
-        {
-          headers: { filename: newest.name, type: "partial" },
-        },
-      );
-      const dataset = datasetJson(zip.buf);
-      console.log("dataset", dataset);
-      const soc = extractSoc(dataset);
+    const datasets = await listDatasets();
+    console.log("found", datasets.length, "datasets with content");
+    // not every dataset carries the battery report: walk the unseen ones,
+    // newest first, and publish the SoC of the freshest one that has it
+    for (const file of datasets) {
+      if (file.name === lastDataset) break;
+      console.log("downloading dataset", file.name, "created on", file.createdOn ?? "unknown");
+      const soc = extractSoc(await downloadDataset(file.name));
       if (soc !== undefined) {
-        console.log(new Date().toISOString(), "soc:", soc, `(${newest.name})`);
+        console.log(new Date().toISOString(), "soc:", soc, `(${file.name})`);
         mqttclient.publish(TOPIC, String(soc));
+        break;
       }
-      lastDataset = newest.name;
+      console.log("no SoC field in this dataset");
     }
+    if (datasets.length) lastDataset = datasets[0].name;
   } catch (error) {
     console.error((error as Error).message);
     // recover from expired sessions and rotated data requests; retry next cycle otherwise
